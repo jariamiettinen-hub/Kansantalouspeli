@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kansantalouspeli</title>
+<style>
+:root{
+  --bg:#0f1720; --panel:#182432; --panel2:#1f2e40; --text:#eaf0f6; --muted:#93a4b8;
+  --accent:#4fd1a5; --accent2:#f5a623; --bad:#e5484d; --good:#4fd1a5; --border:#2a3c52;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif}
+.wrap{max-width:720px;margin:0 auto;padding:16px}
+h1{font-size:1.4rem;margin:8px 0 4px}
+h2{font-size:1.1rem;margin:0 0 8px;color:var(--accent2)}
+.sub{color:var(--muted);font-size:.9rem;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:14px}
+.btn{background:var(--accent);color:#06251c;border:none;border-radius:8px;padding:10px 16px;font-weight:600;font-size:1rem;cursor:pointer}
+.btn:active{transform:scale(.98)}
+.btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
+.btn.wide{width:100%;margin-top:8px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+input[type=number],input[type=text]{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px;width:100%;font-size:16px}
+label{font-size:.85rem;color:var(--muted);display:block;margin:8px 0 4px}
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.stat{background:var(--panel2);border-radius:8px;padding:10px}
+.stat .v{font-size:1.2rem;font-weight:700}
+.stat .l{font-size:.75rem;color:var(--muted)}
+.event{background:linear-gradient(135deg,#2a1f3d,#1f2e40);border:1px solid var(--accent2);border-radius:10px;padding:12px;margin-bottom:14px}
+.event b{color:var(--accent2)}
+select,input[type=range]{width:100%}
+.choices{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.chip{flex:1;min-width:80px;text-align:center;padding:10px 6px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);cursor:pointer;font-size:.85rem}
+.chip.dis{opacity:.3;pointer-events:none}
+.chip.sel{background:var(--accent);color:#06251c;border-color:var(--accent);font-weight:700}
+table{width:100%;border-collapse:collapse;margin-top:8px}
+td,th{padding:8px 6px;text-align:left;border-bottom:1px solid var(--border);font-size:.9rem}
+.rank1{color:var(--accent2);font-weight:700}
+.turnbadge{display:inline-block;background:var(--accent2);color:#2a1500;padding:3px 10px;border-radius:20px;font-size:.8rem;font-weight:700;margin-bottom:8px}
+.hidden{display:none}
+.footer{color:var(--muted);font-size:.75rem;text-align:center;margin-top:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🏛️ Kansantalouspeli</h1>
+  <div class="sub" id="intro">Rakenna paras kansantalous 1-4 pelaajan kesken. Sama lähtötilanne, samat pelivuorot – kuka pärjää parhaiten?</div>
+
+  <!-- SETUP -->
+  <div id="setup" class="card">
+    <h2>Uusi peli</h2>
+    <label>Pelaajien määrä</label>
+    <div class="choices" id="pcount"></div>
+    <div id="names"></div>
+    <label>Pelin pituus</label>
+    <div class="choices" id="rounds">
+      <div class="chip sel" data-v="8">8 kierrosta</div>
+      <div class="chip" data-v="10">10 kierrosta</div>
+      <div class="chip" data-v="14">14 kierrosta</div>
+    </div>
+    <button class="btn wide" onclick="startGame()">Aloita peli</button>
+  </div>
+
+  <div class="card" id="scoreInfo">
+    <h2>📊 Näin pisteet lasketaan</h2>
+    <div class="sub" style="margin-bottom:8px">Lopputulos ja pisteiden kertyminen koko pelin ajan perustuvat painotettuun summaan:</div>
+    <table>
+      <tr><th>Muuttuja</th><th>Painoarvo</th><th>Tavoite</th></tr>
+      <tr><td>BKT-kasvu</td><td>30 %</td><td>Suuri kasvu</td></tr>
+      <tr><td>Työttömyys</td><td>25 %</td><td>Matala</td></tr>
+      <tr><td>Kansalaistyytyväisyys</td><td>20 %</td><td>Korkea</td></tr>
+      <tr><td>Inflaatio</td><td>15 %</td><td>Lähellä 2 %</td></tr>
+      <tr><td>Velka/BKT</td><td>10 %</td><td>Matala</td></tr>
+    </table>
+    <div class="sub" style="margin-top:8px">Voittaja on kierrosten jälkeen se, jolla painotettu kokonaispistemäärä on suurin. Pelkkä BKT-kasvu ei riitä, jos muut osa-alueet kärsivät.</div>
+  </div>
+
+  <div class="card" id="focusInfo">
+    <h2>💵 Investointien vaikutukset</h2>
+    <table>
+      <tr><th>Investointi</th><th>BKT</th><th>Tyött.</th><th>Tyytyv.</th><th>Velka</th></tr>
+      <tr><td>Koulutus</td><td>+</td><td>ei</td><td>++</td><td>+</td></tr>
+      <tr><td>Terveys</td><td>+hieman</td><td>ei</td><td>+++</td><td>+</td></tr>
+      <tr><td>Infra</td><td>+++</td><td>ei</td><td>+</td><td>+++</td></tr>
+      <tr><td>Sosiaalituet</td><td>ei</td><td>ei</td><td>++++</td><td>++</td></tr>
+      <tr><td>T&K</td><td>+viiveellä</td><td>ei</td><td>+</td><td>++</td></tr>
+      <tr><td>Energia</td><td>+hieman</td><td>ei</td><td>+</td><td>++</td></tr>
+      <tr><td>Velanhoito</td><td>−</td><td>ei</td><td>−</td><td>−−−</td></tr>
+      <tr><td>Yritystuet</td><td>++++</td><td>−</td><td>−</td><td>++++</td></tr>
+      <tr><td>Puolustus</td><td>ei</td><td>ei</td><td>+</td><td>++</td></tr>
+    </table>
+    <div class="sub" style="margin-top:8px">"+" = nostaa, "−" = laskee (useampi merkki = suurempi vaikutus), "ei" = ei suoraa vaikutusta.<br><br>Sosiaalituet nostavat myös hieman inflaatiota. T&K, Energia ja Puolustus kertyvät ajan myötä: T&K kasvattaa pysyvää BKT-bonusta, Energia suojaa energiakriiseiltä ja hintapiikeiltä, Puolustus suojaa sotilaalliselta konfliktilta.</div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game" class="hidden">
+    <div class="event" id="eventBox"></div>
+    <div class="card">
+      <div class="turnbadge" id="turnBadge"></div>
+      <h2 id="playerName"></h2>
+      <div class="stats" id="statGrid"></div>
+
+      <div id="controls">
+        <label>Veroaste: <span id="taxVal"></span>%</label>
+        <input type="range" id="taxRate" min="10" max="50" value="25" oninput="taxVal.textContent=taxRate.value">
+
+        <label>Korko: <span id="rateVal"></span>% <span id="rateDelta" style="color:var(--muted)"></span></label>
+        <input type="range" id="rateSlider" min="0" max="10" step="0.25" value="3" oninput="updateRateLabel()">
+
+        <label>Tärkein investointi</label>
+        <div class="choices" id="focus1"></div>
+        <label>Toiseksi tärkein investointi</label>
+        <div class="choices" id="focus2"></div>
+        <div class="sub" id="focusHint" style="margin:8px 0 0;font-size:.8rem"></div>
+        <div class="sub" style="margin:4px 0 0;font-size:.75rem">🟧 T&K:n, Energian ja Puolustuksen täyttyvä väri näyttää kertyneen panostuksen.</div>
+
+        <button class="btn wide" onclick="confirmTurn()">Vahvista päätös</button>
+      </div>
+      <div id="aiNotice" class="hidden" style="text-align:center;padding:20px 0;color:var(--muted)">🤖 Tekoäly tekee päätöksensä...</div>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div id="results" class="hidden card">
+    <h2>🏆 Loppupisteet</h2>
+    <table id="resultTable"></table>
+    <button class="btn wide" onclick="location.reload()">Pelaa uudestaan</button>
+  </div>
+
+  <div class="footer">Yksinkertaistettu talousmalli – havainnollistaa politiikkavalintojen suuntaa, ei ennusta oikeaa taloutta.</div>
+</div>
+
+<script>
+const EVENTS = [
+  {t:"Öljykriisi", d:"Energian hinta nousee jyrkästi.", inflation:1.8, gdp:-0.8, energy:true},
+  {t:"Teknologiapiikki", d:"Tuottavuus paranee yllättäen.", inflation:-0.3, gdp:1.2},
+  {t:"Maailmantalouden hidastuminen", d:"Vienti kärsii globaalisti.", inflation:-0.2, gdp:-1.0},
+  {t:"Kuluttajien luottamus vahvistuu", d:"Kotimainen kulutus kasvaa.", inflation:0.4, gdp:0.9},
+  {t:"Rahoitusmarkkinoiden levottomuus", d:"Korot heiluvat, sijoittajat hermoilevat.", inflation:0.6, gdp:-0.6},
+  {t:"Rauhallinen vuosi", d:"Ei suuria yllätyksiä.", inflation:0, gdp:0},
+  {t:"Elintarvikkeiden hintapiikki", d:"Ruoan hinta nousee maailmalla.", inflation:1.2, gdp:-0.2, energy:true},
+  {t:"Sotilaallinen konflikti", d:"Naapurialueella syttyy sotilaallinen konflikti. Puolustusvalmius ratkaisee, kuinka pahasti se iskee.", inflation:1.2, gdp:-1.6, sat:-4, conflict:true},
+  {t:"Vientimenestys", d:"Kotimaiset yritykset valtaavat uusia markkinoita.", inflation:0.1, gdp:1.4},
+];
+
+const FOCUS={
+ koulutus:{n:'Koulutus',gdp:.3,sat:1.2,cost:1,h:'tasainen kasvu ja tyytyväisyys'},
+ terveys:{n:'Terveys',gdp:.1,sat:1.5,cost:1.1,h:'tyytyväisyys'},
+ infra:{n:'Infra',gdp:.6,sat:.4,cost:1.3,h:'BKT-kasvu'},
+ tuet:{n:'Sosiaalituet',gdp:0,sat:1.8,cost:1.2,infl:.3,h:'tyytyväisyys, hieman inflaatiota'},
+ velka:{n:'Velanhoito',gdp:-.3,sat:-.3,cost:-1.5,h:'laskee velkaa, hidastaa kasvua'},
+ yritys:{n:'Yritystuet',gdp:.7,sat:-.2,cost:1.4,unemp:-.3,h:'nopea BKT ja työllisyys, kallis'},
+ tk:{n:'T&K',gdp:0,sat:.2,cost:1.2,h:'vahva BKT-kasvu viiveellä'},
+ energia:{n:'Energia',gdp:.1,sat:.3,cost:1.2,h:'suojaa energia- ja hintashokeilta'},
+ puolustus:{n:'Puolustus',gdp:0,sat:.3,cost:1.3,h:'suojaa sotilaallisilta konflikteilta'}
+};
+let sf1=null, sf2=null;
+function buildFocus(){
+  ['focus1','focus2'].forEach(id=>{
+    const el=document.getElementById(id);
+    Object.keys(FOCUS).forEach(k=>{
+      const c=document.createElement('div'); c.className='chip'; c.dataset.v=k; c.textContent=FOCUS[k].n;
+      c.onclick=()=>{ if(k===(id==='focus1'?sf2:sf1)) return; if(id==='focus1') sf1=k; else sf2=k; paintFocus(); };
+      el.appendChild(c);
+    });
+  });
+}
+function setFocus(a,b){ sf1=a; sf2=b; paintFocus(); }
+const INVEST_CAPS={tk:6, energia:5, puolustus:0.7/0.15};
+function investPct(key){
+  const p=players[turnIdx]; if(!p) return 0;
+  const val = key==='tk'?p.rd : key==='energia'?p.energy : p.defense;
+  return Math.min(100, (val/INVEST_CAPS[key])*100);
+}
+function paintFocus(){
+  [['focus1',sf1,sf2],['focus2',sf2,sf1]].forEach(([id,sel,other])=>{
+    document.querySelectorAll('#'+id+' .chip').forEach(c=>{
+      const k=c.dataset.v, isSel=k===sel;
+      c.classList.toggle('sel',isSel);
+      c.classList.toggle('dis',k===other);
+      if(INVEST_CAPS[k]!==undefined && !isSel){
+        const pct=investPct(k);
+        c.style.background = pct>0 ? `linear-gradient(90deg, rgba(245,166,35,.4) ${pct}%, var(--panel2) ${pct}%)` : '';
+      } else if(!isSel){
+        c.style.background='';
+      } else {
+        c.style.background='';
+      }
+    });
+  });
+  const hintEl=document.getElementById('focusHint');
+  if(!sf1 && !sf2){
+    hintEl.textContent='Valitse tärkein ja toiseksi tärkein investointi';
+  } else {
+    const h1=sf1?`1. ${FOCUS[sf1].n}: ${FOCUS[sf1].h}`:'1. Valitse tärkein investointi';
+    const h2=sf2?`2. ${FOCUS[sf2].n}: ${FOCUS[sf2].h}`:'2. Valitse toiseksi tärkein investointi';
+    hintEl.textContent=`${h1} · ${h2}`;
+  }
+}
+
+let players=[], round=1, totalRounds=10, turnIdx=0, log=[];
+
+function setupChips(id, single=true){
+  const el=document.getElementById(id);
+  el.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+    el.querySelectorAll('.chip').forEach(x=>x.classList.remove('sel'));
+    c.classList.add('sel');
+    if(id==='pcount') buildNameInputs(+c.dataset.v);
+  });
+}
+setupChips('rounds');
+buildFocus();
+
+const pcEl=document.getElementById('pcount');
+[1,2,3,4].forEach(n=>{
+  const c=document.createElement('div');
+  c.className='chip'+(n===1?' sel':'');
+  c.dataset.v=n; c.textContent=n+' pelaaja'+(n>1?'a':'');
+  pcEl.appendChild(c);
+});
+setupChips('pcount');
+buildNameInputs(1);
+
+function buildNameInputs(n){
+  const box=document.getElementById('names');
+  box.innerHTML='';
+  if(n===1) return;
+  for(let i=1;i<=n;i++){
+    box.innerHTML+=`<label>Pelaaja ${i} nimi</label><input type="text" id="pname${i}" placeholder="Pelaaja ${i}">`;
+  }
+}
+
+function startGame(){
+  const n=+document.querySelector('#pcount .chip.sel').dataset.v;
+  totalRounds=+document.querySelector('#rounds .chip.sel').dataset.v;
+  players=[];
+  for(let i=1;i<=n;i++){
+    const input=document.getElementById('pname'+i);
+    const nm=(input?input.value.trim():'')||('Pelaaja '+i);
+    players.push({name:nm, gdp:100, unemployment:8, inflation:2, rate:3, debt:60, satisfaction:50, rd:0, energy:0, defense:0});
+  }
+  if(n===1){
+    players.push({name:'Tekoäly 🤖', isAI:true, gdp:100, unemployment:8, inflation:2, rate:3, debt:60, satisfaction:50, rd:0, energy:0, defense:0});
+  }
+  document.getElementById('setup').classList.add('hidden');
+  document.getElementById('scoreInfo').classList.add('hidden');
+  document.getElementById('focusInfo').classList.add('hidden');
+  document.getElementById('intro').classList.add('hidden');
+  document.getElementById('game').classList.remove('hidden');
+  round=1; turnIdx=0;
+  newRoundEvent();
+  renderTurn();
+}
+
+let currentEvent=null;
+function newRoundEvent(){
+  currentEvent=EVENTS[Math.floor(Math.random()*EVENTS.length)];
+  document.getElementById('eventBox').innerHTML=
+    `<b>Kierros ${round}/${totalRounds} – ${currentEvent.t}</b><br>${currentEvent.d}`;
+}
+
+function renderTurn(){
+  const p=players[turnIdx];
+  document.getElementById('turnBadge').textContent=`Kierros ${round}/${totalRounds} · Vuorossa`;
+  document.getElementById('playerName').textContent=p.name;
+  const score=computeScore(p);
+  document.getElementById('statGrid').innerHTML=`
+    <div class="stat"><div class="v">${p.gdp.toFixed(1)}</div><div class="l">BKT (indeksi)</div></div>
+    <div class="stat"><div class="v">${p.unemployment.toFixed(1)}%</div><div class="l">Työttömyys</div></div>
+    <div class="stat"><div class="v">${p.inflation.toFixed(1)}%</div><div class="l">Inflaatio</div></div>
+    <div class="stat"><div class="v">${p.rate.toFixed(1)}%</div><div class="l">Korko</div></div>
+    <div class="stat"><div class="v">${p.debt.toFixed(0)}%</div><div class="l">Velka/BKT</div></div>
+    <div class="stat"><div class="v">${p.satisfaction.toFixed(0)}/100</div><div class="l">Kansalaistyytyväisyys</div></div>
+    <div class="stat" style="grid-column:1/-1;background:var(--panel);border:1px solid var(--accent)">
+      <div class="v" style="color:var(--accent)">${score.toFixed(1)} pistettä${p.lastDelta!==undefined?` <span style="font-size:.8rem;color:${p.lastDelta>=0?'var(--good)':'var(--bad)'}">(${p.lastDelta>=0?'+':''}${p.lastDelta.toFixed(1)} viime kierroksella)</span>`:''}</div>
+      <div class="l">Pisteet yhteensä</div>
+    </div>`;
+
+  if(p.isAI){
+    document.getElementById('controls').classList.add('hidden');
+    document.getElementById('aiNotice').classList.remove('hidden');
+    setTimeout(()=>{
+      const d=aiDecide(p);
+      processTurn(d.tax, d.newRate, d.f1, d.f2);
+    }, 700);
+    return;
+  }
+  document.getElementById('controls').classList.remove('hidden');
+  document.getElementById('aiNotice').classList.add('hidden');
+  document.getElementById('taxRate').value=25; taxVal.textContent=25;
+  const rs=document.getElementById('rateSlider');
+  rs.min=Math.max(0,p.rate-1.5); rs.max=p.rate+1.5; rs.value=p.rate;
+  updateRateLabel();
+  setFocus(null,null);
+}
+
+function updateRateLabel(){
+  const p=players[turnIdx], v=+document.getElementById('rateSlider').value, d=v-p.rate;
+  document.getElementById('rateVal').textContent=v.toFixed(2).replace(/0$/,'');
+  document.getElementById('rateDelta').textContent=d===0?'(ennallaan)':`(${d>0?'+':''}${d.toFixed(2).replace(/0$/,'')} %-yks.)`;
+}
+
+function aiDecide(p){
+  const rateAction = p.inflation>4 ? 1 : (p.inflation<0 ? -1 : (Math.random()<0.3?(Math.random()<0.5?1:-1):0));
+  const newRate = Math.max(0, p.rate + rateAction*0.5);
+  let tax = clamp(25 + (p.debt>95?6:0) - (p.unemployment>11?5:0) + (Math.random()*8-4), 10, 50);
+  const keys=Object.keys(FOCUS);
+  const pick=()=>keys[Math.floor(Math.random()*keys.length)];
+  let f1=pick();
+  if(p.unemployment>12) f1='yritys';
+  else if(p.satisfaction<40) f1='tuet';
+  else if(p.debt>100) f1='velka';
+  let f2=pick();
+  while(f2===f1) f2=pick();
+  return {tax, newRate, f1, f2};
+}
+
+function confirmTurn(){
+  if(!sf1 || !sf2){ alert('Valitse ensin molemmat investoinnit.'); return; }
+  const tax=+document.getElementById('taxRate').value;
+  const newRate=+document.getElementById('rateSlider').value;
+  processTurn(tax, newRate, sf1, sf2);
+}
+
+function processTurn(tax, newRate, f1, f2){
+  const p=players[turnIdx];
+  const scoreBefore=computeScore(p);
+  let g=0,s=0,c=0,u=0,inf=0;
+  const rdBonus=Math.min(p.rd,6)*0.15;
+  [[f1,1],[f2,0.5]].forEach(([f,w])=>{
+    const x=FOCUS[f];
+    g+=x.gdp*w; s+=x.sat*w; c+=x.cost*w; u+=(x.unemp||0)*w; inf+=(x.infl||0)*w;
+    if(f==='tk') p.rd+=w;
+    if(f==='energia') p.energy+=w;
+    if(f==='puolustus') p.defense+=w;
+  });
+  let eg=currentEvent.gdp, ei=currentEvent.inflation, es=currentEvent.sat||0;
+  if(currentEvent.energy){ const sh=Math.min(0.6,p.energy*0.12); if(eg<0) eg*=1-sh; if(ei>0) ei*=1-sh; }
+  if(currentEvent.conflict){ const sh=Math.min(0.7,p.defense*0.15); eg*=1-sh; ei*=1-sh; es*=1-sh; }
+  const rateChange=newRate-p.rate;
+  p.rate=Math.max(0,newRate);
+  const taxDrag=(tax-25)*0.04;
+  const gdpGrowth = 1.8 - taxDrag + g + rdBonus - p.rate*0.15 + eg - (p.unemployment-8)*0.04;
+  p.gdp = p.gdp*(1+gdpGrowth/100);
+  p.unemployment = clamp(p.unemployment - gdpGrowth*0.35 + (tax-25)*0.03 + u, 2, 25);
+  p.inflation = clamp(p.inflation + ei - rateChange + inf - (tax-25)*0.02, -2, 15);
+  p.debt = clamp(p.debt + c*1.4 - (tax-25)*0.5, 10, 150);
+  const stability = 10 - Math.abs(p.inflation-2) - (p.unemployment-6)*0.5 - Math.max(0,p.debt-90)*0.1;
+  p.satisfaction = clamp(p.satisfaction + s + es + stability*0.6, 0, 100);
+  p.lastDelta = computeScore(p) - scoreBefore;
+
+  turnIdx++;
+  if(turnIdx>=players.length){
+    turnIdx=0; round++;
+    if(round>totalRounds){ showResults(); return; }
+    newRoundEvent();
+  }
+  renderTurn();
+}
+
+function computeScore(p){
+  const gdpComponent = (p.gdp-100) * 0.3;
+  const unemploymentComponent = (20-p.unemployment) * 1.25;
+  const inflationComponent = (8-Math.abs(p.inflation-2)) * 1.5;
+  const satisfactionComponent = p.satisfaction * 0.2;
+  const debtComponent = (120-p.debt) * 0.1;
+  return gdpComponent + unemploymentComponent + inflationComponent + satisfactionComponent + debtComponent;
+}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+
+function showResults(){
+  document.getElementById('game').classList.add('hidden');
+  const res=document.getElementById('results');
+  res.classList.remove('hidden');
+  const scored=players.map(p=>({...p, score:computeScore(p)})).sort((a,b)=>b.score-a.score);
+  let html='<tr><th>#</th><th>Pelaaja</th><th>BKT</th><th>Tyött.</th><th>Tyytyv.</th><th>Inflaatio</th><th>Velka</th><th>Pisteet</th></tr>';
+  scored.forEach((p,i)=>{
+    html+=`<tr class="${i===0?'rank1':''}"><td>${i+1}${i===0?' 🏆':''}</td><td>${p.name}</td>
+      <td>${p.gdp.toFixed(1)}</td><td>${p.unemployment.toFixed(1)}%</td>
+      <td>${p.satisfaction.toFixed(0)}</td><td>${p.inflation.toFixed(1)}%</td>
+      <td>${p.debt.toFixed(0)}%</td><td>${p.score.toFixed(0)}</td></tr>`;
+  });
+  document.getElementById('resultTable').innerHTML=html;
+}
+</script>
+</body>
+</html>
