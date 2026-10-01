@@ -173,14 +173,14 @@ const FOCUS={
 };
 // ============ MONINPELI (Firebase Firestore) ============
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyACzqELxoFNATA-j0cyAsOShpacEj7sp0s",
-  authDomain: "kapteeniylivalta.firebaseapp.com",
-  projectId: "kapteeniylivalta",
-  storageBucket: "kapteeniylivalta.firebasestorage.app",
-  messagingSenderId: "559289453260",
-  appId: "1:559289453260:web:590211638ff4e006f8d069"
+  apiKey: "AIzaSyC03z3RZVMiaySoa16aIlWTEzTu9uYwjzU",
+  authDomain: "kansantalouspeli.firebaseapp.com",
+  projectId: "kansantalouspeli",
+  storageBucket: "kansantalouspeli.firebasestorage.app",
+  messagingSenderId: "182873169621",
+  appId: "1:182873169621:web:ad62a897370529d1bc8c5c"
 };
-const ROOMS_COLLECTION = 'kansantalouspeli_rooms';
+const ROOMS_COLLECTION = 'rooms';
 let fbApp=null, db=null;
 function fbReady(){
   if(db) return true;
@@ -230,7 +230,7 @@ function createOnlineRoom(){
     ONLINE.active=true; ONLINE.roomId=id; ONLINE.myId=myId; ONLINE.isHost=true;
     history.replaceState(null,'','?room='+id);
     subscribeRoom(id);
-  }).catch(e=>{ showOnlineModal('<p style="color:var(--bad)">Huoneen luonti epäonnistui: '+e.message+'</p>'); });
+  }).catch(e=>{ showOnlineModal('<p style="color:var(--bad)">Huoneen luonti epäonnistui: '+e.message+'<br><br>Jos virhe mainitsee oikeudet (permission), tarkista Firestore-tietoturvasäännöt Firebase-konsolista.</p>'); });
 }
 
 function renderLobby(d){
@@ -261,7 +261,7 @@ function startOnlineGame(d){
   db.collection(ROOMS_COLLECTION).doc(ONLINE.roomId).update({
     started:true, finished:false,
     state:{players,round,turnIdx,totalRounds,currentEvent}
-  });
+  }).catch(e=>alert('Pelin käynnistys epäonnistui: '+e.message));
 }
 
 function joinOnlineRoom(id){
@@ -280,6 +280,8 @@ function joinOnlineRoom(id){
     } else {
       showOnlineModal('<p style="color:var(--bad)">Peli on jo alkanut etkä ehtinyt mukaan.</p>');
     }
+  }).catch(e=>{
+    showOnlineModal('<p style="color:var(--bad)">Yhteys epäonnistui: '+e.message+'<br><br>Jos virhe mainitsee oikeudet (permission), tarkista Firestore-tietoturvasäännöt Firebase-konsolista.</p>');
   });
 }
 
@@ -329,6 +331,8 @@ function subscribeRoom(id){
       if(d.finished) showResults(); else renderTurn();
       ONLINE.applyingRemote=false;
     }
+  }, e=>{
+    showOnlineModal('<p style="color:var(--bad)">Yhteys katkesi: '+e.message+'<br><br>Jos virhe mainitsee oikeudet (permission), tarkista Firestore-tietoturvasäännöt Firebase-konsolista.</p>');
   });
 }
 
